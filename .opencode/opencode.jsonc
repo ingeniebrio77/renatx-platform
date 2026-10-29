@@ -24,11 +24,20 @@
         "url": "https://mcp.stripe.com",
         "disabled": true
       },
-      // 4. GitHub MCP (Servidor remoto oficial de GitHub, OAuth con tu cuenta,
-      //    ideal para gestionar issues/PRs/repo renatx-platform sin exponer tokens)
+      // 4. GitHub MCP (Servidor remoto oficial de GitHub).
+      //    El OAuth dinámico de OpenCode no es compatible con GitHub todavía ( falla
+      //    "does not support dynamic client registration"), así que se usa un PAT:
+      //    1) Crea el token (classic, scopes: repo, read:org) en
+      //       https://github.com/settings/tokens
+      //    2) Expórtalo en tu fish:  set -Ux GITHUB_PERSONAL_ACCESS_TOKEN REDACTED_PAT_ROTATE_AT_GITHUB
+      //    Config oficial: github/github-mcp-server/docs/installation-guides/install-opencode.md
       "github": {
         "type": "remote",
-        "url": "https://api.githubcopilot.com/mcp/"
+        "url": "https://api.githubcopilot.com/mcp/",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+        }
       },
       // 5. Playwright MCP (Servidor local oficial de Microsoft):
       //    Automatización de navegador para pruebas E2E de la web comercial
