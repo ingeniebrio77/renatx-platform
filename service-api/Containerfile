@@ -1,0 +1,26 @@
+# =============================================================================
+# Containerfile — service-api (Python 3.12 + FastAPI + uv)
+# Compatible con Podman rootless y Docker
+# =============================================================================
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+WORKDIR /app
+
+# Variables para optimizar uv y Python dentro del contenedor
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PYTHONUNBUFFERED=1
+
+# Copiamos primero pyproject.toml para aprovechar la caché de capas
+COPY pyproject.toml ./
+
+# Instalamos las dependencias en el entorno virtual del proyecto
+RUN uv sync --no-install-project --no-dev
+
+# Copiamos el código fuente de la aplicación
+COPY app ./app
+
+EXPOSE 8000
+
+# Ejecutamos Uvicorn usando el entorno gestionado por uv sin reinstalar el paquete editable
+CMD ["uv", "run", "--no-project", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,14 @@
+# =============================================================================
+# Inventario Ansible de Ejemplo — Plataforma Renatx (renatx.com)
+# =============================================================================
+
+[preprod]
+preprod.renatx.com ansible_host=203.0.113.10 ansible_user=root
+
+[prod]
+renatx.com ansible_host=203.0.113.20 ansible_user=root
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+deploy_user=renatx
+ssh_pub_key_file=~/.ssh/id_ed25519.pub

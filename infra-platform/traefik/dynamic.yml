@@ -1,0 +1,68 @@
+# =============================================================================
+# Traefik v3 — Enrutamiento Dinámico (File Provider)
+# =============================================================================
+# Ventaja pedagógica y de seguridad:
+# 1. No exponemos el socket de Podman al contenedor de Traefik.
+# 2. Enrutamos /api/* hacia FastAPI (service-api:8000) quitando el prefijo /api,
+#    y también soportamos api.renatx.localhost directamente.
+# 3. Enrutamos /* hacia Next.js (service-web:3000).
+#    Al compartir origen (mismo host y puerto), eliminamos errores de CORS.
+# =============================================================================
+
+http:
+  middlewares:
+    strip-api-prefix:
+      stripPrefix:
+        prefixes:
+          - "/api"
+
+    security-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        customResponseHeaders:
+          X-Platform-Brand: "Renatx (Franco Renato Palavecino)"
+
+  routers:
+    # 1. Ruta para llamadas a /api/* desde el mismo dominio web (evita CORS)
+    api-path-router:
+      rule: "PathPrefix(`/api`)"
+      entryPoints:
+        - web
+      middlewares:
+        - strip-api-prefix
+        - security-headers
+      service: api-service
+      priority: 100
+
+    # 2. Ruta para subdominio dedicado api.renatx.localhost o api.renatx.com
+    api-host-router:
+      rule: "HostRegexp(`^api\\..+`)"
+      entryPoints:
+        - web
+      middlewares:
+        - security-headers
+      service: api-service
+      priority: 90
+
+    # 3. Ruta por defecto hacia el Frontend Web (Next.js)
+    web-router:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - web
+      middlewares:
+        - security-headers
+      service: web-service
+      priority: 10
+
+  services:
+    api-service:
+      loadBalancer:
+        servers:
+          - url: "http://service-api:8000"
+
+    web-service:
+      loadBalancer:
+        servers:
+          - url: "http://service-web:3000"

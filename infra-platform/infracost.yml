@@ -1,0 +1,22 @@
+# =============================================================================
+# Infracost — Auditoría y Trazabilidad de Costes (preprod vs prod)
+# Uso: infracost breakdown --config-file infra-platform/infracost.yml
+# =============================================================================
+version: 0.1
+
+projects:
+  - path: infra-platform/terraform/envs/preprod
+    name: renatx-preprod (Efímero - preprod.renatx.com)
+    terraform_vars:
+      hcloud_token: "mock"
+      cloudflare_api_token: "mock"
+      cloudflare_zone_id: "mock"
+      ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockKey renato@renatx"
+
+  - path: infra-platform/terraform/envs/prod
+    name: renatx-prod (24/7 - renatx.com)
+    terraform_vars:
+      hcloud_token: "mock"
+      cloudflare_api_token: "mock"
+      cloudflare_zone_id: "mock"
+      ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockKey renato@renatx"

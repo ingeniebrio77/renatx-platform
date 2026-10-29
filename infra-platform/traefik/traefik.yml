@@ -1,0 +1,25 @@
+# =============================================================================
+# Traefik v3 — Configuración Estática (Renatx Platform)
+# Enfoque seguro para Podman Rootless: usa File Provider (sin montar podman.sock)
+# =============================================================================
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+api:
+  dashboard: true
+  insecure: true # En local permite ver el dashboard en el puerto 8081 del contenedor
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO
+accessLog: {}
