@@ -23,6 +23,60 @@
         "type": "remote",
         "url": "https://mcp.stripe.com",
         "disabled": true
+      },
+      // 4. GitHub MCP (Servidor remoto oficial de GitHub, OAuth con tu cuenta,
+      //    ideal para gestionar issues/PRs/repo renatx-platform sin exponer tokens)
+      "github": {
+        "type": "remote",
+        "url": "https://api.githubcopilot.com/mcp/"
+      },
+      // 5. Playwright MCP (Servidor local oficial de Microsoft):
+      //    Automatización de navegador para pruebas E2E de la web comercial
+      //    (probar el botón de Stripe, el selector ES/DE y el panel RustDesk)
+      "playwright": {
+        "type": "local",
+        "command": ["npx", "-y", "@playwright/mcp@latest"]
+      },
+      // 6. TestSprite MCP (Servidor local de agentes de testing):
+      //    Desactivado por defecto hasta que generes tu API_KEY (sk-user-...)
+      //    en https://www.testsprite.com/dashboard
+      "testsprite": {
+        "type": "local",
+        "command": ["npx", "-y", "@testsprite/testsprite-mcp@latest"],
+        "environment": {
+          "API_KEY": "{env:TESTSPRITE_API_KEY}"
+        },
+        "disabled": true
+      },
+      // 7. Semgrep MCP (Servidor remoto de análisis estático de seguridad):
+      //    Escanea service-api (Python) y service-web (TS/JS) buscando
+      //    vulnerabilidades o secretos antes de subirlas a `renatx.com`.
+      "semgrep": {
+        "type": "remote",
+        "url": "https://mcp.semgrep.ai/mcp",
+        "oauth": false
+      },
+      // 8. PostgreSQL MCP (Servidor local de Crystal DBA "postgres-mcp pro"):
+      //    Consulta el estado de la base de datos renatx_db directamente.
+      //    Modo 'restricted' (solo lectura) para máxima seguridad por defecto.
+      //    No exponemos renatx-postgres fuera de db_net: se conecta vía Podman.
+      "postgres": {
+        "type": "local",
+        "command": [
+          "podman",
+          "run",
+          "-i",
+          "--rm",
+          "--network",
+          "renatx-platform_db_net",
+          "-e",
+          "DATABASE_URI={env:PGMCP_DATABASE_URI}",
+          "docker.io/crystaldba/postgres-mcp:latest",
+          "--access-mode=restricted"
+        ],
+        "environment": {
+          "PGMCP_DATABASE_URI": "{env:PGMCP_DATABASE_URI}"
+        }
       }
     }
   }
