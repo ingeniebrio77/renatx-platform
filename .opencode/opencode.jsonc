@@ -48,35 +48,22 @@
         },
         "disabled": true
       },
-      // 7. Semgrep MCP (Servidor remoto de análisis estático de seguridad):
-      //    Escanea service-api (Python) y service-web (TS/JS) buscando
-      //    vulnerabilidades o secretos antes de subirlas a `renatx.com`.
+      // 7. Semgrep MCP (Remoto oficial — Requiere autenticación OAuth gratuita):
+      //    SAST/SCA/secrets para service-api (Python) y service-web (TS/JS).
+      //    Activar con: escribir /mcps en OpenCode y hacer login, o:
+      //    opencode mcp auth semgrep
       "semgrep": {
         "type": "remote",
-        "url": "https://mcp.semgrep.ai/mcp",
-        "oauth": false
+        "url": "https://mcp.semgrep.ai/mcp"
       },
-      // 8. PostgreSQL MCP (Servidor local de Crystal DBA "postgres-mcp pro"):
-      //    Consulta el estado de la base de datos renatx_db directamente.
-      //    Modo 'restricted' (solo lectura) para máxima seguridad por defecto.
-      //    No exponemos renatx-postgres fuera de db_net: se conecta vía Podman.
+      // 8. PostgreSQL MCP ("postgres-mcp" de Crystal DBA, vía Podman para respetar db_net interna):
+      //    Conecta a renatx_db de forma efímera (requiere `make up` levantado).
+      //    Modo RESTRICTED (solo lectura + EXPLAIN) como capa de seguridad.
       "postgres": {
         "type": "local",
-        "command": [
-          "podman",
-          "run",
-          "-i",
-          "--rm",
-          "--network",
-          "renatx-platform_db_net",
-          "-e",
-          "DATABASE_URI={env:PGMCP_DATABASE_URI}",
-          "docker.io/crystaldba/postgres-mcp:latest",
-          "--access-mode=restricted"
-        ],
-        "environment": {
-          "PGMCP_DATABASE_URI": "{env:PGMCP_DATABASE_URI}"
-        }
+        "command": ["make", "mcp-postgres"],
+        "timeout": {"startup": 45000, "catalog": 30000, "execution": 300000},
+        "cwd": "/home/renato/Projectos/Pagina"
       }
     }
   }

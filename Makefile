@@ -6,7 +6,7 @@
 
 .PHONY: help init up dev down logs ps db-shell db-backup \
         rustdesk-local-up rustdesk-local-down rustdesk-key \
-        rustdesk-cloud-up rustdesk-cloud-down cost-report
+        rustdesk-cloud-up rustdesk-cloud-down cost-report mcp-postgres
 
 COMPOSE_CMD := $(shell if command -v podman-compose >/dev/null 2>&1; then echo "podman-compose"; else echo "podman compose"; fi)
 TF_CMD := $(shell if command -v tofu >/dev/null 2>&1; then echo "tofu"; else echo "terraform"; fi)
@@ -122,3 +122,16 @@ cost-report:
 		echo "  DNS / Dominio     | renatx.com      | Cloudflare Reg   | ~0,88 €/mes"; \
 		echo "====================================================================="; \
 	fi
+
+# -----------------------------------------------------------------------------
+# Servidor MCP de PostgreSQL (postgres-mcp de Crystal DBA, modo RESTRICTED)
+# Lee la contraseña desde .env y se une a la red interna db_net de Podman.
+# Se usa como servidor MCP 'postgres' definido en .opencode/opencode.jsonc
+# -----------------------------------------------------------------------------
+mcp-postgres:
+	@set -a && . ./.env 2>/dev/null; set +a; \
+	exec podman run -i --rm \
+		--network renatx-platform_db_net \
+		-e "DATABASE_URI=postgresql://$${POSTGRES_USER:-renatx_admin}:$${POSTGRES_PASSWORD:-renatx_local_dev_password_change_me}@postgres:5432/$${POSTGRES_DB:-renatx_db}" \
+		docker.io/crystaldba/postgres-mcp:latest \
+		--access-mode=restricted
