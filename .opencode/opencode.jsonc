@@ -53,13 +53,21 @@
         "command": ["/home/renato/.local/share/renatx/bin/testsprite-mcp-wrapper.sh"],
         "cwd": "/home/renato/Projectos/Pagina"
       },
-      // 7. Semgrep MCP (Remoto oficial — Requiere autenticación OAuth gratuita):
-      //    SAST/SCA/secrets para service-api (Python) y service-web (TS/JS).
-      //    Activar con: escribir /mcps en OpenCode y hacer login, o:
-      //    opencode mcp auth semgrep
-      "semgrep": {
+      // 7. Trivy MCP (plugin oficial de Aqua Security — `trivy plugin install mcp`):
+      //    Escaneo de vulnerabilidades en imágenes Podman, filesystem, repos,
+      //    misconfiguraciones y secretos. Experimental (stdio).
+      "trivy": {
+        "type": "local",
+        "command": ["trivy", "mcp"]
+      },
+      // 9. OWASP ZAP MCP (DAST dinámico contra renatx.localhost):
+      //    Add-on oficial "MCP Integration" v0.4.0. Daemon headless persistente:
+      //    systemctl --user status renatx-zap-daemon.service
+      //    API REST en 127.0.0.1:8090, MCP en 127.0.0.1:8282 (solo localhost).
+      "zap": {
         "type": "remote",
-        "url": "https://mcp.semgrep.ai/mcp"
+        "url": "http://127.0.0.1:8282/",
+        "oauth": false
       },
       // 8. PostgreSQL MCP ("postgres-mcp" de Crystal DBA, vía Podman para respetar db_net interna):
       //    Conecta a renatx_db de forma efímera (requiere `make up` levantado).
