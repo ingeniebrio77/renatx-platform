@@ -24,20 +24,17 @@
         "url": "https://mcp.stripe.com",
         "disabled": true
       },
-      // 4. GitHub MCP (Servidor remoto oficial de GitHub).
-      //    El OAuth dinámico de OpenCode no es compatible con GitHub todavía ( falla
-      //    "does not support dynamic client registration"), así que se usa un PAT:
-      //    1) Crea el token (classic, scopes: repo, read:org) en
-      //       https://github.com/settings/tokens
-      //    2) Expórtalo en tu fish:  set -Ux GITHUB_PERSONAL_ACCESS_TOKEN REDACTED_PAT_ROTATE_AT_GITHUB
-      //    Config oficial: github/github-mcp-server/docs/installation-guides/install-opencode.md
+      // 4. GitHub MCP — vía PROXY LOCAL (systemd --user: renatx-gh-mcp-proxy.service).
+      //    El MCP remoto de GitHub NO acepta el flujo OAuth de OpenCode (sin Dynamic
+      //    Client Registration) y la sustitución {env:} no se aplica en headers de
+      //    servidores remotos. Solución: proxy HTTP local en 127.0.0.1:49231 que
+      //    reenvía contra https://api.githubcopilot.com/mcp/ inyectando el PAT leído
+      //    del entorno del usuario (systemd --user set-environment). El token jamás
+      //    vive en este fichero ni en el repositorio.
       "github": {
         "type": "remote",
-        "url": "https://api.githubcopilot.com/mcp/",
-        "oauth": false,
-        "headers": {
-          "Authorization": "Bearer {env:GITHUB_PERSONAL_ACCESS_TOKEN}"
-        }
+        "url": "http://127.0.0.1:49231/mcp",
+        "oauth": false
       },
       // 5. Playwright MCP (Servidor local oficial de Microsoft):
       //    Automatización de navegador para pruebas E2E de la web comercial
@@ -47,15 +44,14 @@
         "command": ["npx", "-y", "@playwright/mcp@latest"]
       },
       // 6. TestSprite MCP (Servidor local de agentes de testing):
-      //    Desactivado por defecto hasta que generes tu API_KEY (sk-user-...)
-      //    en https://www.testsprite.com/dashboard
+      //    La API key NUNCA va en el repo: el wrapper la lee del entorno del
+      //    usuario (fish universal TESTSPRITE_API_KEY, decodificando escapes
+      //    \\xHH de fish_variables) y la exporta al proceso MCP hijo.
+      //    Requisito: set -Ux TESTSPRITE_API_KEY sk-member-... en fish.
       "testsprite": {
         "type": "local",
-        "command": ["npx", "-y", "@testsprite/testsprite-mcp@latest"],
-        "environment": {
-          "API_KEY": "{env:TESTSPRITE_API_KEY}"
-        },
-        "disabled": true
+        "command": ["/home/renato/.local/share/renatx/bin/testsprite-mcp-wrapper.sh"],
+        "cwd": "/home/renato/Projectos/Pagina"
       },
       // 7. Semgrep MCP (Remoto oficial — Requiere autenticación OAuth gratuita):
       //    SAST/SCA/secrets para service-api (Python) y service-web (TS/JS).
