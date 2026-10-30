@@ -1,6 +1,6 @@
 """Endpoints de autenticación JWT (`/auth/login` y `/auth/me`)."""
 
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -32,7 +32,9 @@ def login_for_access_token(payload: LoginRequest) -> TokenResponse:
 
 
 @router.get("/me")
-def read_current_user(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def read_current_user(
+    current_user: Annotated[dict[str, Any], Depends(get_current_user)]
+) -> dict[str, Any]:
     """
     Ruta protegida: requiere enviar `Authorization: Bearer <token>`.
     Devuelve los datos decodificados del token JWT.

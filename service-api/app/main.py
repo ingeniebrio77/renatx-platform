@@ -3,7 +3,7 @@ Punto de entrada principal de `service-api` (FastAPI) — Plataforma Renatx.
 Autor: Franco Renato Palavecino (Hamburgo, Alemania)
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI
@@ -44,7 +44,7 @@ def health_check() -> dict[str, Any]:
         "environment": settings.env,
         "base_domain": settings.base_domain,
         "database_target": f"{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}",
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
     }
 
 

@@ -1,6 +1,6 @@
 """Endpoints de monetización con Stripe para los servicios 1-a-1 de Renatx."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Header
@@ -46,7 +46,7 @@ def create_checkout_session(payload: CheckoutRequest) -> CheckoutResponse:
     En local/preprod devuelve una sesión simulada sin cargos reales.
     """
     item = CATALOG.get(payload.plan_id, CATALOG["support_sos_1h"])
-    timestamp = int(datetime.now(timezone.utc).timestamp())
+    timestamp = int(datetime.now(UTC).timestamp())
     session_id = f"cs_test_renatx_{payload.plan_id}_{timestamp}"
     title = item["title_de"] if payload.language == "de" else item["title_es"]
 

@@ -11,8 +11,9 @@ Un JSON Web Token (JWT) funciona de forma similar a un ticket firmado criptográ
    sin necesidad de guardar sesiones en memoria del servidor (stateless).
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Any
+import uuid
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -25,8 +26,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def create_access_token(subject: str, role: str = "admin") -> str:
-    """Genera un token JWT firmado con tiempo de expiración."""
-    now = datetime.now(timezone.utc)
+    """Genera un token JWT firmado con tiempo de expiración y ID único (jti)."""
+    now = datetime.now(UTC)
     expire = now + timedelta(minutes=settings.jwt_expire_minutes)
 
     payload: dict[str, Any] = {
@@ -36,12 +37,13 @@ def create_access_token(subject: str, role: str = "admin") -> str:
         "env": settings.env,
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp()),
+        "jti": str(uuid.uuid4()),  # JWT ID único para prevenir colisiones
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> dict[str, Any]:
     """
     Dependencia reutilizable de FastAPI.

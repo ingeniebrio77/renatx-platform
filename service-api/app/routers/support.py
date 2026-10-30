@@ -4,8 +4,8 @@ Permite a Franco Renato Palavecino encender o apagar la sala de asistencia remot
 por horas/minutos (protegido con JWT) y calcula el coste acumulado de la sesión.
 """
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 
@@ -35,7 +35,7 @@ def _build_status() -> RustDeskStatusResponse:
     )
 
     if active and started_at is not None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         elapsed_seconds = max(60, int((now - started_at).total_seconds()))
         elapsed_minutes = max(1, elapsed_seconds // 60)
         estimated_cost = round((elapsed_seconds / 3600.0) * HOURLY_RATE_EUR, 5)
@@ -88,20 +88,20 @@ def get_rustdesk_status() -> RustDeskStatusResponse:
 
 @router.post("/start", response_model=RustDeskStatusResponse)
 def start_rustdesk_instance(
-    _admin: dict[str, Any] = Depends(get_current_user),
+    _admin: Annotated[dict[str, Any], Depends(get_current_user)],
 ) -> RustDeskStatusResponse:
     """
     [Solo Admin con JWT] Activa la sala de soporte remoto por horas/minutos
     y habilita las credenciales de conexión para el cliente.
     """
     _RUSTDESK_STATE["active"] = True
-    _RUSTDESK_STATE["started_at"] = datetime.now(timezone.utc)
+    _RUSTDESK_STATE["started_at"] = datetime.now(UTC)
     return _build_status()
 
 
 @router.post("/stop", response_model=RustDeskStatusResponse)
 def stop_rustdesk_instance(
-    _admin: dict[str, Any] = Depends(get_current_user),
+    _admin: Annotated[dict[str, Any], Depends(get_current_user)],
 ) -> RustDeskStatusResponse:
     """
     [Solo Admin con JWT] Detiene la sesión de soporte remoto y vuelve a coste 0,00 €/h.

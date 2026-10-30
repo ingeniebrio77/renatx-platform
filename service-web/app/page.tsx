@@ -267,13 +267,13 @@ export default function HomePage() {
           <div className="brand-logo">
             <span className="brand-mark">RX</span>
             <span>
-              renatx<span style={{ color: "#38bdf8" }}>.com</span>
+              renatx<span style={{ color: "var(--accent-cyan)" }}>.com</span>
             </span>
             <span
               className="mono"
               style={{
                 fontSize: "0.75rem",
-                color: "#94a3b8",
+                color: "var(--text-secondary)",
                 marginLeft: "0.5rem",
                 fontWeight: 400,
               }}
@@ -302,8 +302,8 @@ export default function HomePage() {
                 style={{
                   padding: "0.28rem 0.65rem",
                   fontSize: "0.75rem",
-                  background: lang === "es" ? "#0284c7" : "rgba(15,23,42,0.8)",
-                  color: "#fff",
+                  background: lang === "es" ? "var(--color-primary)" : "rgba(15,23,42,0.8)",
+                  color: "var(--color-primary-foreground)",
                   border: "1px solid rgba(148,163,184,0.25)",
                 }}
               >
@@ -315,8 +315,8 @@ export default function HomePage() {
                 style={{
                   padding: "0.28rem 0.65rem",
                   fontSize: "0.75rem",
-                  background: lang === "de" ? "#0284c7" : "rgba(15,23,42,0.8)",
-                  color: "#fff",
+                  background: lang === "de" ? "var(--color-primary)" : "rgba(15,23,42,0.8)",
+                  color: "var(--color-primary-foreground)",
                   border: "1px solid rgba(148,163,184,0.25)",
                 }}
               >
@@ -347,7 +347,7 @@ export default function HomePage() {
                 style={{
                   textDecoration: "none",
                   background: "rgba(30,41,59,0.8)",
-                  color: "#e2e8f0",
+                  color: "var(--bg-surface-hover)",
                   border: "1px solid rgba(148,163,184,0.25)",
                 }}
               >
@@ -367,13 +367,13 @@ export default function HomePage() {
           {/* TARJETA DE PERFIL Y GARANTÍA TÉCNICA */}
           <div className="card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
             <div>
-              <div className="mono" style={{ color: "#38bdf8", fontSize: "0.78rem", marginBottom: "0.4rem" }}>
+              <div className="mono" style={{ color: "var(--accent-cyan)", fontSize: "0.78rem", marginBottom: "0.4rem" }}>
                 DIRECTO CON EL ESPECIALISTA · SIN INTERMEDIARIOS
               </div>
               <h2 style={{ margin: "0 0 0.5rem 0", fontSize: "1.35rem" }}>
                 Franco Renato Palavecino
               </h2>
-              <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginTop: 0 }}>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: 0 }}>
                 {lang === "es"
                   ? "Experiencia real combinando administración de centros de datos (Proxmox/KVM, Kubernetes, Linux en NMMN Hamburgo) y docencia oficial para futuros especialistas IT en Alemania (IAD)."
                   : "Praxiserfahrung aus Rechenzentrumsbetrieb (Proxmox/KVM, Kubernetes, Linux bei NMMN Hamburg) kombiniert mit fundierter Lehrtätigkeit für angehende Fachinformatiker (IAD)."}
@@ -383,13 +383,13 @@ export default function HomePage() {
             <div className="metrics-grid mono">
               <div className="metric-box">
                 <div className="metric-label">Idiomas de Sesión</div>
-                <div className="metric-value" style={{ color: "#38bdf8" }}>
+                <div className="metric-value" style={{ color: "var(--accent-cyan)" }}>
                   Español / Deutsch
                 </div>
               </div>
               <div className="metric-box">
                 <div className="metric-label">Canal Remoto</div>
-                <div className="metric-value" style={{ color: "#10b981" }}>
+                <div className="metric-value" style={{ color: "var(--accent-emerald)" }}>
                   RustDesk Privado
                 </div>
               </div>
@@ -409,7 +409,7 @@ export default function HomePage() {
         <section id="servicios" style={{ marginBottom: "2.5rem" }}>
           <div style={{ marginBottom: "1.25rem" }}>
             <h2 style={{ fontSize: "1.65rem", margin: "0 0 0.35rem 0" }}>{t.servicesTitle}</h2>
-            <p style={{ color: "#94a3b8", margin: 0 }}>{t.servicesSub}</p>
+            <p style={{ color: "var(--text-secondary)", margin: 0 }}>{t.servicesSub}</p>
           </div>
 
           <div className="grid-3">
@@ -423,7 +423,7 @@ export default function HomePage() {
                   <div
                     className="mono"
                     style={{
-                      color: "#38bdf8",
+                      color: "var(--accent-cyan)",
                       fontSize: "0.75rem",
                       fontWeight: 700,
                       marginBottom: "0.5rem",
@@ -433,19 +433,19 @@ export default function HomePage() {
                   </div>
                   <h3 style={{ margin: "0 0 0.6rem 0", fontSize: "1.2rem" }}>{srv.title}</h3>
                   <div style={{ marginBottom: "0.85rem" }}>
-                    <span style={{ fontSize: "2rem", fontWeight: 800, color: "#f8fafc" }}>
+                    <span style={{ fontSize: "2rem", fontWeight: 800, color: "var(--bg-base)" }}>
                       {srv.price}
                     </span>{" "}
-                    <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>{srv.unit}</span>
+                    <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>{srv.unit}</span>
                   </div>
-                  <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: "1rem" }}>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "1rem" }}>
                     {srv.desc}
                   </p>
                   <ul
                     style={{
                       paddingLeft: "1.1rem",
                       margin: "0 0 1.5rem 0",
-                      color: "#cbd5e1",
+                      color: "var(--text-primary)",
                       fontSize: "0.86rem",
                     }}
                   >
@@ -471,19 +471,19 @@ export default function HomePage() {
 
           {/* CONFIRMACIÓN DE RESERVA STRIPE */}
           {checkoutResult && (
-            <div className="card" style={{ borderColor: "#6366f1", marginTop: "1rem" }}>
+            <div className="card" style={{ borderColor: "var(--accent-indigo)", marginTop: "1rem" }}>
               <div className="section-header">
-                <h3 className="section-title" style={{ color: "#a5b4fc" }}>
+                <h3 className="section-title" style={{ color: "var(--bg-surface)" }}>
                   ✅ {String(checkoutResult.service_title)} — {String(checkoutResult.amount_eur)} EUR
                 </h3>
                 <span className="tag mono">Stripe Session: {String(checkoutResult.session_id)}</span>
               </div>
-              <p style={{ color: "#e2e8f0", margin: "0 0 0.75rem 0", fontSize: "0.95rem" }}>
+              <p style={{ color: "var(--bg-surface-hover)", margin: "0 0 0.75rem 0", fontSize: "0.95rem" }}>
                 {String(checkoutResult.message)}
               </p>
-              <div className="mono" style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
+              <div className="mono" style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                 Checkout URL:{" "}
-                <span style={{ color: "#38bdf8" }}>{String(checkoutResult.checkout_url)}</span>
+                <span style={{ color: "var(--accent-cyan)" }}>{String(checkoutResult.checkout_url)}</span>
               </div>
             </div>
           )}
@@ -495,7 +495,7 @@ export default function HomePage() {
             <h2 style={{ fontSize: "1.65rem", margin: "0 0 0.35rem 0" }}>
               {t.rustdeskSectionTitle}
             </h2>
-            <p style={{ color: "#94a3b8", margin: 0 }}>{t.rustdeskSectionSub}</p>
+            <p style={{ color: "var(--text-secondary)", margin: 0 }}>{t.rustdeskSectionSub}</p>
           </div>
 
           <div className="grid-2">
@@ -506,8 +506,8 @@ export default function HomePage() {
                 <span
                   className="pill mono"
                   style={{
-                    borderColor: rustdesk?.active ? "#10b981" : "#475569",
-                    color: rustdesk?.active ? "#a7f3d0" : "#94a3b8",
+                    borderColor: rustdesk?.active ? "var(--accent-emerald)" : "var(--text-muted)",
+                    color: rustdesk?.active ? "var(--state-online-foreground)" : "var(--text-secondary)",
                   }}
                 >
                   <span className={`dot ${rustdesk?.active ? "dot-online" : "dot-offline"}`} />
@@ -518,13 +518,13 @@ export default function HomePage() {
               <div className="metrics-grid mono" style={{ marginBottom: "1rem" }}>
                 <div className="metric-box">
                   <div className="metric-label">ID Server (hbbs)</div>
-                  <div className="metric-value" style={{ fontSize: "0.9rem", color: "#38bdf8" }}>
+                  <div className="metric-value" style={{ fontSize: "0.9rem", color: "var(--accent-cyan)" }}>
                     {rustdesk?.id_server || "—"}
                   </div>
                 </div>
                 <div className="metric-box">
                   <div className="metric-label">Relay Server (hbbr)</div>
-                  <div className="metric-value" style={{ fontSize: "0.9rem", color: "#38bdf8" }}>
+                  <div className="metric-value" style={{ fontSize: "0.9rem", color: "var(--accent-cyan)" }}>
                     {rustdesk?.relay_server || "—"}
                   </div>
                 </div>
@@ -534,13 +534,13 @@ export default function HomePage() {
                 <div className="metric-label">Public Key (Ed25519 Mandatory Encryption)</div>
                 <div
                   className="metric-value"
-                  style={{ fontSize: "0.82rem", wordBreak: "break-all", color: "#10b981" }}
+                  style={{ fontSize: "0.82rem", wordBreak: "break-all", color: "var(--accent-emerald)" }}
                 >
                   {rustdesk?.public_key || "—"}
                 </div>
               </div>
 
-              <p style={{ color: "#94a3b8", fontSize: "0.86rem", margin: 0 }}>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.86rem", margin: 0 }}>
                 {lang === "de" ? rustdesk?.instructions_de : rustdesk?.instructions_es}
               </p>
             </div>
@@ -551,7 +551,7 @@ export default function HomePage() {
                 <h3 className="section-title">⚡ {t.adminBoxTitle}</h3>
                 <span className="tag mono">Hetzner CX22 · 0,007 €/h</span>
               </div>
-              <p style={{ color: "#94a3b8", fontSize: "0.88rem", marginTop: 0 }}>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.88rem", marginTop: 0 }}>
                 {t.adminBoxSub}
               </p>
 
@@ -577,7 +577,7 @@ export default function HomePage() {
                     onClick={() => handleToggleRustdesk("stop")}
                     disabled={supportLoading}
                     className="btn"
-                    style={{ background: "#dc2626", color: "#fff" }}
+                    style={{ background: "var(--state-error)", color: "var(--color-primary-foreground)" }}
                   >
                     ⏹ {t.stopNodeBtn}
                   </button>
@@ -593,7 +593,7 @@ export default function HomePage() {
                 </div>
                 <div className="metric-box">
                   <div className="metric-label">Coste Acumulado Sesión</div>
-                  <div className="metric-value" style={{ color: "#10b981" }}>
+                  <div className="metric-value" style={{ color: "var(--accent-emerald)" }}>
                     {rustdesk?.active
                       ? `${rustdesk.estimated_session_cost_eur.toFixed(4)} €`
                       : "0,0000 €"}
@@ -624,8 +624,8 @@ $ make rustdesk-cloud-down`}
             <strong>RENATX.COM</strong> · Franco Renato Palavecino · Ottensen, Hamburg (DE)
           </div>
           <div>
-            Email: <span style={{ color: "#38bdf8" }}>renatop@disroot.org</span> · LinkedIn:{" "}
-            <span style={{ color: "#38bdf8" }}>linkedin.com/in/re-pal</span>
+            Email: <span style={{ color: "var(--accent-cyan)" }}>renatop@disroot.org</span> · LinkedIn:{" "}
+            <span style={{ color: "var(--accent-cyan)" }}>linkedin.com/in/re-pal</span>
           </div>
         </footer>
       </div>
