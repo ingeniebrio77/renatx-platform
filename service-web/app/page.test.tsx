@@ -17,11 +17,28 @@ const localStorageMock = {
 global.localStorage = localStorageMock as any;
 
 // Helper to create mock responses
-function createMockResponse(data: any, ok = true) {
+function createMockResponse(data: any, ok = true, status = ok ? 200 : 400) {
   return {
     ok,
+    status,
     json: () => Promise.resolve(data),
   };
+}
+
+function fillAdminCredentials() {
+  fireEvent.change(screen.getByLabelText(/Usuario administrador/i), {
+    target: { value: "renato@renatx.com" },
+  });
+  fireEvent.change(screen.getByLabelText(/Contraseña/i), {
+    target: { value: "linux-admin-demo" },
+  });
+}
+
+function submitAdminForm() {
+  const button = screen.getByRole("button", { name: /Autenticar Instructor/i });
+  const form = button.closest("form");
+  if (!form) throw new Error("Formulario de acceso no encontrado");
+  fireEvent.submit(form);
 }
 
 describe("HomePage Component", () => {
@@ -347,7 +364,8 @@ describe("HomePage Component", () => {
         expect(screen.getByText(/1\. Autenticar Instructor \(JWT\)/i)).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText(/1\. Autenticar Instructor \(JWT\)/i));
+      fillAdminCredentials();
+      submitAdminForm();
 
       await waitFor(() => {
         expect(screen.getByText(/▶ Encender Nodo RustDesk \(0,007 €\/h\)/i)).toBeInTheDocument();
@@ -407,7 +425,8 @@ describe("HomePage Component", () => {
         expect(screen.getByText(/1\. Autenticar Instructor \(JWT\)/i)).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText(/1\. Autenticar Instructor \(JWT\)/i));
+      fillAdminCredentials();
+      submitAdminForm();
 
       await waitFor(() => {
         expect(screen.getByText(/▶ Encender Nodo RustDesk \(0,007 €\/h\)/i)).toBeInTheDocument();
@@ -542,7 +561,8 @@ describe("HomePage Component", () => {
         expect(screen.getByText(/1\. Autenticar Instructor \(JWT\)/i)).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText(/1\. Autenticar Instructor \(JWT\)/i));
+      fillAdminCredentials();
+      submitAdminForm();
 
       await waitFor(() => {
         expect(screen.getByText(/▶ Encender Nodo RustDesk \(0,007 €\/h\)/i)).toBeInTheDocument();
@@ -567,6 +587,108 @@ describe("HomePage Component", () => {
       expect(screen.getAllByText(/Hamburg/i).length).toBeGreaterThan(0);
       expect(screen.getByText("renatop@disroot.org")).toBeInTheDocument();
       expect(screen.getByText("linkedin.com/in/re-pal")).toBeInTheDocument();
+    });
+  });
+
+  describe("Error Handling & Accessibility", () => {
+    function mockBase({ loginStatus = 200, checkoutStatus = 200 } = {}) {
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/health")) {
+          return Promise.resolve(createMockResponse({ status: "healthy" }));
+        }
+        if (url.includes("/api/support/status")) {
+          return Promise.resolve(
+            createMockResponse({
+              active: false,
+              status_label: "STANDBY",
+              id_server: "—",
+              relay_server: "—",
+              public_key: "—",
+              started_at_utc: null,
+              elapsed_minutes: 0,
+              hourly_rate_eur: 0.007,
+              estimated_session_cost_eur: 0,
+              instructions_es: "es",
+              instructions_de: "de",
+            })
+          );
+        }
+        if (url.includes("/api/auth/login")) {
+          const ok = loginStatus === 200;
+          return Promise.resolve(
+            createMockResponse(
+              ok ? { access_token: "tok", token_type: "bearer" } : { detail: "x" },
+              ok,
+              loginStatus
+            )
+          );
+        }
+        if (url.includes("/api/billing/checkout")) {
+          const ok = checkoutStatus === 200;
+          return Promise.resolve(
+            createMockResponse(ok ? { status: "success" } : { detail: "x" }, ok, checkoutStatus)
+          );
+        }
+        return Promise.resolve(createMockResponse({}, false, 404));
+      });
+    }
+
+    test("shows an accessible error when login fails", async () => {
+      mockBase({ loginStatus: 401 });
+      render(<HomePage />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Usuario administrador/i)).toBeInTheDocument();
+      });
+
+      fillAdminCredentials();
+      submitAdminForm();
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(/Credenciales incorrectas/i);
+    });
+
+    test("shows an accessible error when checkout fails", async () => {
+      mockBase({ checkoutStatus: 500 });
+      render(<HomePage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/Reservar y Pagar con Stripe/i).length).toBeGreaterThan(0);
+      });
+
+      fireEvent.click(screen.getAllByText(/Reservar y Pagar con Stripe/i)[0]);
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(/No se pudo crear la sesión de pago/i);
+    });
+
+    test("does not ship admin credentials in the rendered form", async () => {
+      mockBase();
+      render(<HomePage />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Usuario administrador/i)).toBeInTheDocument();
+      });
+
+      const userInput = screen.getByLabelText(/Usuario administrador/i) as HTMLInputElement;
+      const passInput = screen.getByLabelText(/Contraseña/i) as HTMLInputElement;
+      expect(userInput.value).toBe("");
+      expect(passInput.value).toBe("");
+    });
+
+    test("keeps document lang in sync with the language switcher", async () => {
+      mockBase();
+      render(<HomePage />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Sprache auf Deutsch/i }));
+      await waitFor(() => {
+        expect(document.documentElement.lang).toBe("de");
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Cambiar idioma a español/i }));
+      await waitFor(() => {
+        expect(document.documentElement.lang).toBe("es");
+      });
     });
   });
 });

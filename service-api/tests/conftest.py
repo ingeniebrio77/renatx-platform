@@ -4,12 +4,11 @@ Proporciona fixtures comunes para tests unitarios y de integración.
 """
 
 import os
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import Generator
 from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from httpx import AsyncClient
 
 # Configurar variables de entorno ANTES de importar la app
 os.environ.setdefault("ENV", "test")
@@ -25,22 +24,31 @@ os.environ.setdefault("JWT_EXPIRE_MINUTES", "60")
 os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_mock_renatx_000000000000")
 os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_mock_renatx_000000000000")
 os.environ.setdefault("STRIPE_PRICE_ID_PRO", "price_mock_renatx_pro_monthly")
+os.environ.setdefault("ADMIN_USERNAME", "renato@renatx.com")
+
+# Hash real generado en tiempo de test (iteraciones bajas para que sea rápido).
+from app.core.passwords import hash_password
+
+TEST_ADMIN_PASSWORD = "linux-admin-demo"
+os.environ.setdefault("ADMIN_PASSWORD_HASH", hash_password(TEST_ADMIN_PASSWORD, iterations=1000))
 
 from app.core.security import create_access_token
 from app.main import app
+from app.routers.auth import login_limiter
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_limiter() -> Generator[None, None, None]:
+    """Evita que el rate limit de login contamine tests consecutivos."""
+    login_limiter.reset()
+    yield
+    login_limiter.reset()
 
 
 @pytest.fixture(scope="session")
 def test_client() -> Generator[TestClient, None, None]:
     """Cliente de prueba síncrono para tests rápidos."""
     with TestClient(app) as client:
-        yield client
-
-
-@pytest.fixture(scope="session")
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
-    """Cliente de prueba asíncrono para tests que requieren async."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
         yield client
 
 
@@ -53,7 +61,6 @@ def valid_jwt_token() -> str:
 @pytest.fixture
 def expired_jwt_token() -> str:
     """Genera un token JWT expirado (para test de expiración)."""
-    # Crear token con expiración en el pasado
     from datetime import timedelta
 
     import jwt
@@ -76,6 +83,7 @@ def expired_jwt_token() -> str:
 def invalid_jwt_token() -> str:
     """Token JWT con firma incorrecta."""
     import jwt
+
     payload = {"sub": "renato@renatx.com", "role": "sysadmin"}
     return jwt.encode(payload, "wrong_secret_key", algorithm="HS256")
 
@@ -84,6 +92,26 @@ def invalid_jwt_token() -> str:
 def auth_headers(valid_jwt_token: str) -> dict[str, str]:
     """Headers de autorización con token válido."""
     return {"Authorization": f"Bearer {valid_jwt_token}"}
+
+
+@pytest.fixture
+def stripe_signature():
+    """Genera cabeceras `Stripe-Signature` válidas para un cuerpo dado."""
+    import hashlib
+    import hmac
+    import time
+
+    from app.core.config import settings
+
+    def _sign(body: bytes, timestamp: int | None = None) -> str:
+        ts = int(time.time()) if timestamp is None else timestamp
+        signed = f"{ts}.".encode("ascii") + body
+        digest = hmac.new(
+            settings.stripe_webhook_secret.encode("utf-8"), signed, hashlib.sha256
+        ).hexdigest()
+        return f"t={ts},v1={digest}"
+
+    return _sign
 
 
 @pytest.fixture

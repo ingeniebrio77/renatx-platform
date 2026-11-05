@@ -14,7 +14,7 @@
  * ============================================================================
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 type Lang = "es" | "de";
 
@@ -100,6 +100,14 @@ const I18N = {
     startNodeBtn: "Encender Nodo RustDesk (0,007 €/h)",
     stopNodeBtn: "Apagar / Destruir Nodo (Volver a 0,00 €/h)",
     copyBtn: "Copiar",
+    userLabel: "Usuario administrador",
+    passLabel: "Contraseña",
+    loginError: "Credenciales incorrectas. Revisa usuario y contraseña.",
+    rateLimitError: "Demasiados intentos. Espera unos minutos antes de reintentar.",
+    networkError: "No se pudo conectar con el servidor. Inténtalo de nuevo.",
+    notConfiguredError: "El servidor no tiene la autenticación configurada.",
+    bookingError: "No se pudo crear la sesión de pago. Inténtalo de nuevo.",
+    supportError: "No se pudo cambiar el estado del nodo RustDesk.",
   },
   de: {
     badge: "LINUX/CLOUD REMOTE-SUPPORT & 1:1 IT-MENTORING LIVE AUS HAMBURG",
@@ -168,6 +176,14 @@ const I18N = {
     startNodeBtn: "RustDesk-Instanz starten (0,007 €/Std.)",
     stopNodeBtn: "Instanz stoppen / zerstören (0,00 €/Std.)",
     copyBtn: "Kopieren",
+    userLabel: "Administrator-Benutzer",
+    passLabel: "Passwort",
+    loginError: "Anmeldedaten falsch. Bitte Benutzer und Passwort prüfen.",
+    rateLimitError: "Zu viele Versuche. Bitte in einigen Minuten erneut versuchen.",
+    networkError: "Verbindung zum Server fehlgeschlagen. Bitte erneut versuchen.",
+    notConfiguredError: "Die Authentifizierung ist auf dem Server nicht konfiguriert.",
+    bookingError: "Die Zahlungssitzung konnte nicht erstellt werden.",
+    supportError: "Der Status der RustDesk-Instanz konnte nicht geändert werden.",
   },
 };
 
@@ -183,27 +199,48 @@ export default function HomePage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [supportLoading, setSupportLoading] = useState<boolean>(false);
 
+  const [adminUser, setAdminUser] = useState<string>("");
+  const [adminPass, setAdminPass] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Evita re-renders (y avisos de act) cuando el estado de salud no cambia.
+  const healthRef = useRef<boolean>(false);
+
+  // El idioma del documento debe seguir al conmutador (SEO y lectores de pantalla).
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   async function refreshStatus() {
     try {
       const [hRes, sRes] = await Promise.all([
         fetch("/api/health"),
         fetch("/api/support/status"),
       ]);
-      if (hRes.ok) setHealthOk(true);
+      if (hRes.ok !== healthRef.current) {
+        healthRef.current = hRes.ok;
+        setHealthOk(hRes.ok);
+      }
       if (sRes.ok) {
         const sData = await sRes.json();
         setRustdesk(sData);
       }
     } catch {
-      setHealthOk(false);
+      if (healthRef.current) {
+        healthRef.current = false;
+        setHealthOk(false);
+      }
     }
   }
 
   useEffect(() => {
     refreshStatus();
+    const intervalId = setInterval(refreshStatus, 30_000);
+    return () => clearInterval(intervalId);
   }, []);
 
   async function handleBookService(planId: string) {
+    setErrorMessage(null);
     setLoadingPlan(planId);
     try {
       const res = await fetch("/api/billing/checkout", {
@@ -215,26 +252,48 @@ export default function HomePage() {
           language: lang,
         }),
       });
+      if (!res.ok) {
+        setErrorMessage(t.bookingError);
+        return;
+      }
       const data = await res.json();
       setCheckoutResult(data);
+    } catch {
+      setErrorMessage(t.networkError);
     } finally {
       setLoadingPlan(null);
     }
   }
 
-  async function handleAdminLogin() {
+  async function handleAdminLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrorMessage(null);
     setSupportLoading(true);
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: "renato@renatx.com",
-          password: "linux-admin-demo",
-        }),
+        body: JSON.stringify({ username: adminUser, password: adminPass }),
       });
+
+      if (res.status === 429) {
+        setErrorMessage(t.rateLimitError);
+        return;
+      }
+      if (res.status === 503) {
+        setErrorMessage(t.notConfiguredError);
+        return;
+      }
+      if (!res.ok) {
+        setErrorMessage(t.loginError);
+        return;
+      }
+
       const data = await res.json();
       setJwtToken(data.access_token || null);
+      setAdminPass("");
+    } catch {
+      setErrorMessage(t.networkError);
     } finally {
       setSupportLoading(false);
     }
@@ -242,6 +301,7 @@ export default function HomePage() {
 
   async function handleToggleRustdesk(action: "start" | "stop") {
     if (!jwtToken) return;
+    setErrorMessage(null);
     setSupportLoading(true);
     try {
       const res = await fetch(`/api/support/${action}`, {
@@ -250,10 +310,21 @@ export default function HomePage() {
           Authorization: `Bearer ${jwtToken}`,
         },
       });
-      if (res.ok) {
-        const data = await res.json();
-        setRustdesk(data);
+
+      if (res.status === 401) {
+        setJwtToken(null);
+        setErrorMessage(t.loginError);
+        return;
       }
+      if (!res.ok) {
+        setErrorMessage(t.supportError);
+        return;
+      }
+
+      const data = await res.json();
+      setRustdesk(data);
+    } catch {
+      setErrorMessage(t.networkError);
     } finally {
       setSupportLoading(false);
     }
@@ -283,14 +354,18 @@ export default function HomePage() {
           </div>
 
           <div className="nav-pills mono">
-            <span className="pill">
-              <span className={`dot ${healthOk ? "dot-online" : "dot-offline"}`} />
+            <span className="pill" role="status" aria-live="polite">
+              <span
+                className={`dot ${healthOk ? "dot-online" : "dot-offline"}`}
+                aria-hidden="true"
+              />
               {healthOk ? "SYSTEM ONLINE" : "CONNECTING..."}
             </span>
 
-            <span className="pill">
+            <span className="pill" role="status" aria-live="polite">
               <span
                 className={`dot ${rustdesk?.active ? "dot-online" : "dot-offline"}`}
+                aria-hidden="true"
               />
               RustDesk: {rustdesk?.active ? "ACTIVE" : "STANDBY (0 €/h)"}
             </span>
@@ -299,6 +374,8 @@ export default function HomePage() {
               <button
                 onClick={() => setLang("es")}
                 className="btn"
+                aria-pressed={lang === "es"}
+                aria-label="Cambiar idioma a español"
                 style={{
                   padding: "0.28rem 0.65rem",
                   fontSize: "0.75rem",
@@ -312,6 +389,8 @@ export default function HomePage() {
               <button
                 onClick={() => setLang("de")}
                 className="btn"
+                aria-pressed={lang === "de"}
+                aria-label="Sprache auf Deutsch umstellen"
                 style={{
                   padding: "0.28rem 0.65rem",
                   fontSize: "0.75rem",
@@ -328,6 +407,11 @@ export default function HomePage() {
       </nav>
 
       <div className="container">
+        {errorMessage && (
+          <p className="alert-error mono" role="alert">
+            {errorMessage}
+          </p>
+        )}
         {/* HERO COMERCIAL */}
         <section className="hero">
           <div className="card">
@@ -347,7 +431,7 @@ export default function HomePage() {
                 style={{
                   textDecoration: "none",
                   background: "rgba(30,41,59,0.8)",
-                  color: "var(--bg-surface-hover)",
+                  color: "var(--text-primary)",
                   border: "1px solid rgba(148,163,184,0.25)",
                 }}
               >
@@ -433,7 +517,7 @@ export default function HomePage() {
                   </div>
                   <h3 style={{ margin: "0 0 0.6rem 0", fontSize: "1.2rem" }}>{srv.title}</h3>
                   <div style={{ marginBottom: "0.85rem" }}>
-                    <span style={{ fontSize: "2rem", fontWeight: 800, color: "var(--bg-base)" }}>
+                    <span style={{ fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)" }}>
                       {srv.price}
                     </span>{" "}
                     <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>{srv.unit}</span>
@@ -473,12 +557,12 @@ export default function HomePage() {
           {checkoutResult && (
             <div className="card" style={{ borderColor: "var(--accent-indigo)", marginTop: "1rem" }}>
               <div className="section-header">
-                <h3 className="section-title" style={{ color: "var(--bg-surface)" }}>
+                <h3 className="section-title" style={{ color: "var(--accent-indigo-soft)" }}>
                   ✅ {String(checkoutResult.service_title)} — {String(checkoutResult.amount_eur)} EUR
                 </h3>
                 <span className="tag mono">Stripe Session: {String(checkoutResult.session_id)}</span>
               </div>
-              <p style={{ color: "var(--bg-surface-hover)", margin: "0 0 0.75rem 0", fontSize: "0.95rem" }}>
+              <p style={{ color: "var(--text-on-surface)", margin: "0 0 0.75rem 0", fontSize: "0.95rem" }}>
                 {String(checkoutResult.message)}
               </p>
               <div className="mono" style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
@@ -555,34 +639,73 @@ export default function HomePage() {
                 {t.adminBoxSub}
               </p>
 
-              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                {!jwtToken ? (
+              {!jwtToken ? (
+                <form className="admin-login-form" onSubmit={handleAdminLogin}>
+                  <label htmlFor="admin-user">{t.userLabel}</label>
+                  <input
+                    id="admin-user"
+                    name="username"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    value={adminUser}
+                    onChange={(event) => setAdminUser(event.target.value)}
+                  />
+
+                  <label htmlFor="admin-pass">{t.passLabel}</label>
+                  <input
+                    id="admin-pass"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={adminPass}
+                    onChange={(event) => setAdminPass(event.target.value)}
+                  />
+
                   <button
-                    onClick={handleAdminLogin}
+                    type="submit"
                     disabled={supportLoading}
                     className="btn btn-primary"
+                    aria-busy={supportLoading}
                   >
                     🔐 {t.loginAdminBtn}
                   </button>
-                ) : !rustdesk?.active ? (
-                  <button
-                    onClick={() => handleToggleRustdesk("start")}
-                    disabled={supportLoading}
-                    className="btn btn-emerald"
-                  >
-                    ▶ {t.startNodeBtn}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleToggleRustdesk("stop")}
-                    disabled={supportLoading}
-                    className="btn"
-                    style={{ background: "var(--state-error)", color: "var(--color-primary-foreground)" }}
-                  >
-                    ⏹ {t.stopNodeBtn}
-                  </button>
-                )}
-              </div>
+                </form>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.75rem",
+                    flexWrap: "wrap",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  {!rustdesk?.active ? (
+                    <button
+                      onClick={() => handleToggleRustdesk("start")}
+                      disabled={supportLoading}
+                      className="btn btn-emerald"
+                      aria-busy={supportLoading}
+                    >
+                      ▶ {t.startNodeBtn}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleToggleRustdesk("stop")}
+                      disabled={supportLoading}
+                      className="btn"
+                      aria-busy={supportLoading}
+                      style={{
+                        background: "var(--state-error)",
+                        color: "var(--state-error-foreground)",
+                      }}
+                    >
+                      ⏹ {t.stopNodeBtn}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className="metrics-grid mono">
                 <div className="metric-box">

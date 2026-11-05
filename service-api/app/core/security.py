@@ -11,6 +11,8 @@ Un JSON Web Token (JWT) funciona de forma similar a un ticket firmado criptográ
    sin necesidad de guardar sesiones en memoria del servidor (stateless).
 """
 
+import hashlib
+import hmac
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -78,3 +80,57 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token JWT inválido o firma incorrecta",
         ) from exc
+
+
+def _parse_stripe_signature_header(header: str) -> tuple[int | None, list[str]]:
+    """Extrae `t` y todas las firmas `v1` de una cabecera `Stripe-Signature`."""
+    timestamp: int | None = None
+    signatures: list[str] = []
+
+    for part in header.split(","):
+        if "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key == "t":
+            try:
+                timestamp = int(value)
+            except ValueError:
+                return None, []
+        elif key == "v1" and value:
+            signatures.append(value)
+
+    return timestamp, signatures
+
+
+def verify_stripe_signature(
+    payload: bytes,
+    header: str | None,
+    secret: str,
+    *,
+    tolerance_seconds: int = 300,
+    now: int | None = None,
+) -> bool:
+    """Valida una cabecera `Stripe-Signature` (esquema `t=<ts>,v1=<hmac>`).
+
+    - Rechaza firmas ausentes o malformadas.
+    - Rechaza eventos fuera de la ventana de tolerancia (anti-replay).
+    """
+    if not header or not secret:
+        return False
+
+    timestamp, signatures = _parse_stripe_signature_header(header)
+    if timestamp is None or not signatures:
+        return False
+
+    current = int(datetime.now(UTC).timestamp()) if now is None else int(now)
+    if abs(current - timestamp) > tolerance_seconds:
+        return False
+
+    signed_payload = f"{timestamp}.".encode("ascii") + payload
+    expected = hmac.new(
+        secret.encode("utf-8"), signed_payload, hashlib.sha256
+    ).hexdigest()
+
+    return any(hmac.compare_digest(expected, signature) for signature in signatures)

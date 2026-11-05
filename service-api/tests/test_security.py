@@ -256,3 +256,74 @@ class TestSecurityEdgeCases:
         # El token no debe contener partes de la clave
         for part in valid_jwt_token.split("."):
             assert len(part) < len(settings.jwt_secret_key) or settings.jwt_secret_key not in part
+
+class TestVerifyStripeSignature:
+    """Tests para la validación de firmas de webhook de Stripe."""
+
+    SECRET = "whsec_test_secret"
+
+    def _header(self, body: bytes, timestamp: int, secret: str | None = None) -> str:
+        import hashlib
+        import hmac
+
+        key = secret or self.SECRET
+        digest = hmac.new(
+            key.encode("utf-8"), f"{timestamp}.".encode() + body, hashlib.sha256
+        ).hexdigest()
+        return f"t={timestamp},v1={digest}"
+
+    def test_valid_signature_accepted(self):
+        from app.core.security import verify_stripe_signature
+
+        body = b'{"event_id":"evt_1"}'
+        header = self._header(body, 1_700_000_000)
+        assert verify_stripe_signature(
+            body, header, self.SECRET, now=1_700_000_000
+        ) is True
+
+    def test_missing_header_rejected(self):
+        from app.core.security import verify_stripe_signature
+
+        assert verify_stripe_signature(b"{}", None, self.SECRET) is False
+        assert verify_stripe_signature(b"{}", "", self.SECRET) is False
+
+    def test_missing_secret_rejected(self):
+        from app.core.security import verify_stripe_signature
+
+        body = b"{}"
+        header = self._header(body, 1_700_000_000)
+        assert verify_stripe_signature(body, header, "") is False
+
+    def test_wrong_secret_rejected(self):
+        from app.core.security import verify_stripe_signature
+
+        body = b"{}"
+        header = self._header(body, 1_700_000_000, secret="otro")
+        assert verify_stripe_signature(
+            body, header, self.SECRET, now=1_700_000_000
+        ) is False
+
+    def test_stale_timestamp_rejected(self):
+        from app.core.security import verify_stripe_signature
+
+        body = b"{}"
+        header = self._header(body, 1_700_000_000)
+        assert verify_stripe_signature(
+            body, header, self.SECRET, now=1_700_000_000 + 301
+        ) is False
+
+    def test_multiple_v1_signatures_accepted(self):
+        from app.core.security import verify_stripe_signature
+
+        body = b"{}"
+        ts = 1_700_000_000
+        good = self._header(body, ts).split("v1=")[1]
+        header = f"t={ts},v1=deadbeef,v1={good}"
+        assert verify_stripe_signature(body, header, self.SECRET, now=ts) is True
+
+    def test_malformed_header_rejected(self):
+        from app.core.security import verify_stripe_signature
+
+        assert verify_stripe_signature(b"{}", "sin-formato", self.SECRET) is False
+        assert verify_stripe_signature(b"{}", "t=abc,v1=ff", self.SECRET) is False
+        assert verify_stripe_signature(b"{}", "t=123", self.SECRET) is False

@@ -120,10 +120,8 @@ class TestBillingCheckout:
         assert "Stripe-Checkout-Sitzung" in response.json()["message"]
         assert "erhalten Sie" in response.json()["message"]
 
-    def test_checkout_invalid_plan_id_falls_back_to_default(
-        self, test_client: TestClient
-    ):
-        """plan_id inválido debe usar el servicio por defecto (support_sos_1h)."""
+    def test_checkout_invalid_plan_id_is_rejected(self, test_client: TestClient):
+        """Un plan desconocido debe devolver 400, nunca cobrar otro precio."""
         response = test_client.post(
             "/billing/checkout",
             json={
@@ -132,10 +130,8 @@ class TestBillingCheckout:
                 "language": "es",
             },
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["plan_id"] == "plan_inexistente"  # Se pasa tal cual
-        assert data["amount_eur"] == 65.00  # Pero usa precio del default
+        assert response.status_code == 400
+        assert "Plan desconocido" in response.json()["detail"]
 
     def test_checkout_with_missing_fields_uses_defaults(self, test_client: TestClient):
         """Campos faltantes usan valores por defecto del schema."""
@@ -162,15 +158,19 @@ class TestBillingCheckout:
 
 
 class TestBillingWebhook:
-    """Tests para POST /billing/webhook (Stripe webhook)."""
+    """Tests para POST /billing/webhook (Stripe webhook firmado)."""
 
-    def test_webhook_returns_received_true(self, test_client: TestClient):
-        """Webhook debe confirmar recepción."""
+    def test_webhook_with_valid_signature_is_accepted(
+        self, test_client: TestClient, stripe_signature
+    ):
+        """Una firma correcta debe confirmar la recepción del evento."""
+        body = b'{"event_id":"evt_test_123","event_type":"checkout.session.completed"}'
         response = test_client.post(
             "/billing/webhook",
-            json={
-                "event_id": "evt_test_123",
-                "event_type": "checkout.session.completed",
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "Stripe-Signature": stripe_signature(body),
             },
         )
         assert response.status_code == 200
@@ -182,41 +182,91 @@ class TestBillingWebhook:
         assert data["environment"] == "test"
         assert "action_taken" in data
 
-    def test_webhook_with_custom_signature_header(self, test_client: TestClient):
-        """Webhook debe detectar header de firma personalizado."""
+    def test_webhook_rejects_missing_signature(self, test_client: TestClient):
+        """Sin cabecera Stripe-Signature debe devolver 400."""
         response = test_client.post(
             "/billing/webhook",
-            json={
-                "event_id": "evt_test_456",
-                "event_type": "payment_intent.succeeded",
-            },
-            headers={"stripe-signature": "t=12345,v1=custom_signature"},
+            json={"event_id": "evt_test_456", "event_type": "payment_intent.succeeded"},
         )
-        assert response.status_code == 200
-        assert response.json()["signature_present"] is True
+        assert response.status_code == 400
+        assert "Firma" in response.json()["detail"]
 
-    def test_webhook_with_missing_fields_uses_defaults(self, test_client: TestClient):
+    def test_webhook_rejects_invalid_signature(self, test_client: TestClient):
+        """Una firma que no coincide con el HMAC debe rechazarse."""
+        body = b'{"event_id":"evt_test_456","event_type":"payment_intent.succeeded"}'
+        response = test_client.post(
+            "/billing/webhook",
+            content=body,
+            headers={"Stripe-Signature": "t=12345,v1=custom_signature"},
+        )
+        assert response.status_code == 400
+
+    def test_webhook_rejects_tampered_body(
+        self, test_client: TestClient, stripe_signature
+    ):
+        """Modificar el cuerpo después de firmar debe invalidar la firma."""
+        signed_body = b'{"event_id":"evt_ok","event_type":"checkout.session.completed"}'
+        header = stripe_signature(signed_body)
+        tampered = b'{"event_id":"evt_ok","event_type":"invoice.paid"}'
+        response = test_client.post(
+            "/billing/webhook", content=tampered, headers={"Stripe-Signature": header}
+        )
+        assert response.status_code == 400
+
+    def test_webhook_rejects_stale_timestamp(
+        self, test_client: TestClient, stripe_signature
+    ):
+        """Un evento fuera de la ventana anti-replay debe rechazarse."""
+        body = b'{"event_id":"evt_old","event_type":"checkout.session.completed"}'
+        stale = stripe_signature(body, timestamp=1_000_000)
+        response = test_client.post(
+            "/billing/webhook", content=body, headers={"Stripe-Signature": stale}
+        )
+        assert response.status_code == 400
+
+    def test_webhook_with_missing_fields_uses_defaults(
+        self, test_client: TestClient, stripe_signature
+    ):
         """Payload incompleto usa valores por defecto del schema."""
-        response = test_client.post("/billing/webhook", json={})
+        body = b"{}"
+        response = test_client.post(
+            "/billing/webhook",
+            content=body,
+            headers={"Stripe-Signature": stripe_signature(body)},
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["received"] is True
-        assert data["event_id"] == "evt_mock_renatx_999"  # Default del schema
+        assert data["event_id"] == "evt_mock_renatx_999"
         assert data["event_type"] == "checkout.session.completed"
 
-    def test_webhook_response_schema(self, test_client: TestClient):
+    def test_webhook_response_schema(self, test_client: TestClient, stripe_signature):
         """La respuesta debe tener la estructura esperada."""
         from app.schemas import WebhookPayload
 
+        body = b'{"event_id":"evt_test_789","event_type":"checkout.session.completed"}'
         response = test_client.post(
             "/billing/webhook",
-            json={
-                "event_id": "evt_test_789",
-                "event_type": "checkout.session.completed",
-            },
+            content=body,
+            headers={"Stripe-Signature": stripe_signature(body)},
         )
-        # Validar que el payload de entrada es correcto
         WebhookPayload(event_id="evt_test_789", event_type="checkout.session.completed")
-        # Respuesta tiene campos esperados
         data = response.json()
-        assert all(k in data for k in ["received", "event_id", "event_type", "environment"])
+        assert all(
+            k in data for k in ["received", "event_id", "event_type", "environment"]
+        )
+
+
+class TestBillingWebhookMalformedPayload:
+    def test_webhook_rejects_invalid_json_with_valid_signature(
+        self, test_client: TestClient, stripe_signature
+    ):
+        """Una firma válida no salva un cuerpo que no es JSON."""
+        body = b"esto-no-es-json"
+        response = test_client.post(
+            "/billing/webhook",
+            content=body,
+            headers={"Stripe-Signature": stripe_signature(body)},
+        )
+        assert response.status_code == 400
+        assert "Payload" in response.json()["detail"]

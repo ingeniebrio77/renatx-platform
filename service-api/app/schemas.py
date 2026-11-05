@@ -4,10 +4,18 @@ from pydantic import BaseModel, Field
 
 
 class LoginRequest(BaseModel):
-    """Datos recibidos al iniciar sesión."""
+    """Datos recibidos al iniciar sesión (usuario administrador único)."""
 
-    username: str = Field(default="renato@renatx.com", examples=["renato@renatx.com"])
-    password: str = Field(default="linux-admin-demo", examples=["linux-admin-demo"])
+    username: str = Field(
+        max_length=254,
+        examples=["renato@renatx.com"],
+        description="Usuario administrador configurado en ADMIN_USERNAME",
+    )
+    password: str = Field(
+        max_length=1024,
+        examples=["linux-admin-demo"],
+        description="Contraseña en claro; se compara contra ADMIN_PASSWORD_HASH",
+    )
 
 
 class TokenResponse(BaseModel):

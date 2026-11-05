@@ -8,9 +8,23 @@
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
+  --text-on-surface: #e2e8f0;
   --accent-cyan: #38bdf8;
   --accent-emerald: #10b981;
   --accent-indigo: #6366f1;
+  --accent-indigo-soft: #a5b4fc;
+
+  /* Tokens semánticos (usados por botones, estados y formularios) */
+  --color-primary: #0284c7;
+  --color-primary-foreground: #ffffff;
+  --color-muted: #0f172a;
+  --color-muted-foreground: #1e293b;
+  --state-error: #dc2626;
+  --state-error-foreground: #ffffff;
+  --state-online: #10b981;
+  --state-online-foreground: #a7f3d0;
+  --focus-ring: #38bdf8;
+  --radius-sm: 8px;
 }
 
 * {
@@ -385,4 +399,84 @@ pre,
   gap: 1rem;
   color: var(--text-muted);
   font-size: 0.82rem;
+}
+
+/* ==========================================================================
+   Accesibilidad: foco visible para navegación por teclado
+   ========================================================================== */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Formulario de acceso del instructor
+   ========================================================================== */
+.admin-login-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 1.1rem;
+  max-width: 22rem;
+}
+
+.admin-login-form label {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.admin-login-form input {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-terminal);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+
+.admin-login-form input:hover {
+  border-color: var(--border-accent);
+}
+
+/* ==========================================================================
+   Avisos de error accesibles
+   ========================================================================== */
+.alert-error {
+  border: 1px solid var(--state-error);
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+  margin: 0 0 1rem 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }

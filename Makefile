@@ -135,3 +135,22 @@ mcp-postgres:
 		-e "DATABASE_URI=postgresql://$${POSTGRES_USER:-renatx_admin}:$${POSTGRES_PASSWORD:-renatx_local_dev_password_change_me}@postgres:5432/$${POSTGRES_DB:-renatx_db}" \
 		docker.io/crystaldba/postgres-mcp:latest \
 		--access-mode=restricted
+
+# -------------------------------------------------------------------------
+# Generador de hash de contraseña administrador (PBKDF2-HMAC-SHA256)
+# Para producción: define ADMIN_PASSWORD_HASH en .env con este comando
+# -------------------------------------------------------------------------
+password-hash:
+	@echo "Generando hash PBKDF2-HMAC-SHA256 para ADMIN_PASSWORD_HASH..."
+	@echo "Introduce la contraseña del administrador:"
+	@read -s -s PASS; \
+	echo ""; \
+	if [ -z "$$PASS" ]; then \
+		echo "[ERROR] La contraseña no puede estar vacía"; \
+		exit 1; \
+	fi; \
+	if [ $$(echo "$$PASS" | wc -c) -lt 13 ]; then \
+		echo "[WARNING] Se recomienda una contraseña de al menos 12 caracteres"; \
+	fi; \
+	python3 -c "from app.core.passwords import hash_password; print(); print('ADMIN_PASSWORD_HASH=' + hash_password('$$PASS'))" 2>/dev/null || \
+	python3 -c "import sys; sys.path.insert(0, 'service-api'); from app.core.passwords import hash_password; print(); print('ADMIN_PASSWORD_HASH=' + hash_password('$$PASS'))"

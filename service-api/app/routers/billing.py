@@ -1,11 +1,14 @@
 """Endpoints de monetización con Stripe para los servicios 1-a-1 de Renatx."""
 
+import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, HTTPException, Request, status
+from pydantic import ValidationError
 
 from app.core.config import settings
+from app.core.security import verify_stripe_signature
 from app.schemas import CheckoutRequest, CheckoutResponse, WebhookPayload
 
 router = APIRouter(prefix="/billing", tags=["Catálogo y Pagos (Stripe)"])
@@ -45,7 +48,13 @@ def create_checkout_session(payload: CheckoutRequest) -> CheckoutResponse:
     Crea una sesión de pago en Stripe Checkout para el servicio seleccionado.
     En local/preprod devuelve una sesión simulada sin cargos reales.
     """
-    item = CATALOG.get(payload.plan_id, CATALOG["support_sos_1h"])
+    item = CATALOG.get(payload.plan_id)
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Plan desconocido: '{payload.plan_id}'. Consulta GET /billing/catalog.",
+        )
+
     timestamp = int(datetime.now(UTC).timestamp())
     session_id = f"cs_test_renatx_{payload.plan_id}_{timestamp}"
     title = item["title_de"] if payload.language == "de" else item["title_es"]
@@ -75,16 +84,39 @@ def create_checkout_session(payload: CheckoutRequest) -> CheckoutResponse:
 
 
 @router.post("/webhook")
-def stripe_webhook(
-    payload: WebhookPayload,
-    stripe_signature: str | None = Header(default="t=0000,v1=mock_sig"),
+async def stripe_webhook(
+    request: Request,
+    stripe_signature: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
-    """Recibe la confirmación asíncrona de Stripe cuando el cliente completa el pago."""
+    """
+    Recibe la confirmación asíncrona de Stripe cuando el cliente completa el pago.
+
+    La firma se valida contra `STRIPE_WEBHOOK_SECRET` usando el cuerpo crudo
+    (imprescindible: reserializar el JSON invalida el HMAC de Stripe).
+    """
+    raw_body = await request.body()
+
+    if not verify_stripe_signature(
+        raw_body, stripe_signature, settings.stripe_webhook_secret
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Firma de webhook ausente, caducada o inválida",
+        )
+
+    try:
+        payload = WebhookPayload(**json.loads(raw_body or b"{}"))
+    except (json.JSONDecodeError, ValidationError, TypeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payload de webhook inválido",
+        ) from exc
+
     return {
         "received": True,
         "event_id": payload.event_id,
         "event_type": payload.event_type,
-        "signature_present": bool(stripe_signature),
+        "signature_present": True,
         "environment": settings.env,
         "action_taken": "Reserva 1-a-1 confirmada y notificada",
     }

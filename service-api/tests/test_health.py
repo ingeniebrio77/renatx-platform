@@ -32,11 +32,20 @@ class TestHealthEndpoint:
             "author",
             "environment",
             "base_domain",
-            "database_target",
+            "components",
             "timestamp_utc",
         ]
         for field in required_fields:
             assert field in data, f"Falta campo requerido: {field}"
+
+    def test_health_does_not_leak_database_details(self, test_client: TestClient):
+        """El endpoint público no debe exponer host, puerto ni nombre de la BD."""
+        data = test_client.get("/health").json()
+        assert "database_target" not in data
+        serialized = str(data)
+        assert "test_db" not in serialized
+        assert "5432" not in serialized
+        assert data["components"] == {"api": "ok"}
 
     def test_health_status_is_healthy(self, test_client: TestClient):
         """El campo status debe ser 'healthy'."""
@@ -58,13 +67,10 @@ class TestHealthEndpoint:
         response = test_client.get("/health")
         assert response.json()["base_domain"] == "renatx.localhost"
 
-    def test_health_database_target_format(self, test_client: TestClient):
-        """database_target debe tener formato host:puerto/db."""
+    def test_health_database_details_not_present(self, test_client: TestClient):
+        """database_target ya no forma parte de la respuesta pública."""
         response = test_client.get("/health")
-        db_target = response.json()["database_target"]
-        assert "localhost" in db_target
-        assert "test_db" in db_target
-        assert ":" in db_target
+        assert "database_target" not in response.json()
 
     def test_health_timestamp_is_valid_iso(self, test_client: TestClient):
         """timestamp_utc debe ser una fecha ISO 8601 válida."""

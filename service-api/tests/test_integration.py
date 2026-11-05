@@ -26,20 +26,13 @@ class TestFullAuthFlow:
         assert me_resp.json()["authenticated"] is True
         assert me_resp.json()["user"]["username"] == "renato@renatx.com"
 
-    def test_login_with_custom_credentials_works(self, test_client: TestClient):
-        """Login acepta cualquier username/password válido (longitud >= 4)."""
+    def test_login_with_custom_credentials_is_rejected(self, test_client: TestClient):
+        """Solo el administrador configurado puede obtener un token."""
         login_resp = test_client.post(
             "/auth/login",
             json={"username": "cliente@empresa.de", "password": "mipassword123"},
         )
-        assert login_resp.status_code == 200
-        token = login_resp.json()["access_token"]
-
-        me_resp = test_client.get(
-            "/auth/me", headers={"Authorization": f"Bearer {token}"}
-        )
-        assert me_resp.status_code == 200
-        assert me_resp.json()["user"]["username"] == "cliente@empresa.de"
+        assert login_resp.status_code == 401
 
 
 class TestBillingFlow:
@@ -82,14 +75,15 @@ class TestBillingFlow:
             assert checkout_resp.status_code == 200
             assert checkout_resp.json()["status"] == "success"
 
-    def test_webhook_after_checkout(self, test_client: TestClient):
-        """Webhook debe procesar evento tras checkout."""
-        # Simular evento de Stripe
+    def test_webhook_after_checkout(self, test_client: TestClient, stripe_signature):
+        """Webhook firmado debe procesar evento tras checkout."""
+        body = b'{"event_id":"evt_checkout_completed_123","event_type":"checkout.session.completed"}'
         webhook_resp = test_client.post(
             "/billing/webhook",
-            json={
-                "event_id": "evt_checkout_completed_123",
-                "event_type": "checkout.session.completed",
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "Stripe-Signature": stripe_signature(body),
             },
         )
         assert webhook_resp.status_code == 200
@@ -166,12 +160,22 @@ class TestCrossEndpointConsistency:
             assert resp.headers["content-type"] == "application/json"
             assert isinstance(resp.json(), dict)
 
-    def test_cors_headers_present(self, test_client: TestClient):
-        """Las respuestas deben incluir headers CORS (configuración permisiva en local)."""
-        resp = test_client.get("/health")
-        # FastAPI con CORSMiddleware allow_origins=["*"] no añade Access-Control-Allow-Origin
-        # en respuestas simples, pero sí en preflight. Verificamos que no falle.
+    def test_cors_allows_configured_origin(self, test_client: TestClient):
+        """Un origen de la lista blanca debe recibir la cabecera CORS."""
+        resp = test_client.get(
+            "/health", headers={"Origin": "http://renatx.localhost:8080"}
+        )
         assert resp.status_code == 200
+        assert (
+            resp.headers.get("access-control-allow-origin")
+            == "http://renatx.localhost:8080"
+        )
+
+    def test_cors_rejects_unknown_origin(self, test_client: TestClient):
+        """Un origen no autorizado no debe reflejarse en la respuesta."""
+        resp = test_client.get("/health", headers={"Origin": "https://evil.example"})
+        assert resp.status_code == 200
+        assert resp.headers.get("access-control-allow-origin") is None
 
 
 class TestErrorHandling:
@@ -203,3 +207,27 @@ class TestErrorHandling:
         data = resp.json()
         assert "detail" in data
         assert isinstance(data["detail"], str)
+
+class TestProductionStartupGuard:
+    """El arranque en producción debe rechazar configuración insegura."""
+
+    async def test_lifespan_rejects_insecure_prod(self, monkeypatch):
+        import pytest
+        from fastapi import FastAPI
+
+        import app.main as main_module
+
+        monkeypatch.setattr(main_module.settings, "env", "prod")
+        monkeypatch.setattr(main_module.settings, "jwt_secret_key", "corto")
+
+        with pytest.raises(RuntimeError):
+            async with main_module.lifespan(FastAPI()):
+                pass
+
+    async def test_lifespan_allows_test_env(self):
+        from fastapi import FastAPI
+
+        from app.main import lifespan
+
+        async with lifespan(FastAPI()):
+            pass

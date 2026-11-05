@@ -23,10 +23,14 @@ class TestLoginRequestSchema:
         assert data.username == "test@renatx.com"
         assert data.password == "secret123"
 
-    def test_login_request_defaults(self):
-        data = LoginRequest()
-        assert data.username == "renato@renatx.com"
-        assert data.password == "linux-admin-demo"
+    def test_login_request_requires_credentials(self):
+        """Sin credenciales el schema debe fallar: no hay usuarios por defecto."""
+        with pytest.raises(ValidationError):
+            LoginRequest()
+
+    def test_login_request_rejects_oversized_password(self):
+        with pytest.raises(ValidationError):
+            LoginRequest(username="renato@renatx.com", password="x" * 2000)
 
     def test_login_request_accepts_extra_fields(self):
         """Pydantic v2 por defecto ignora campos extra (extra='ignore' en config)."""

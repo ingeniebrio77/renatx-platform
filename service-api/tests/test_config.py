@@ -54,14 +54,7 @@ class TestSettingsFromEnv:
         monkeypatch.setenv("BASE_DOMAIN", "renatx.com")
         monkeypatch.setenv("JWT_SECRET_KEY", "prod_secret_key_very_long_and_secure_2026")
 
-        # Reimportar para que tome las nuevas variables
-        import importlib
-
-        import app.core.config
-        importlib.reload(app.core.config)
-        from app.core.config import Settings
-
-        s = Settings()
+        s = Settings(_env_file=None)
         assert s.env == "prod"
         assert s.base_domain == "renatx.com"
         assert s.jwt_secret_key == "prod_secret_key_very_long_and_secure_2026"
@@ -73,13 +66,7 @@ class TestSettingsFromEnv:
         monkeypatch.setenv("POSTGRES_HOST", "custom-host")
         monkeypatch.setenv("POSTGRES_PORT", "5433")
 
-        import importlib
-
-        import app.core.config
-        importlib.reload(app.core.config)
-        from app.core.config import Settings
-
-        s = Settings()
+        s = Settings(_env_file=None)
         assert s.postgres_user == "custom_user"
         assert s.postgres_password == "custom_pass"
         assert s.postgres_db == "custom_db"
@@ -90,14 +77,8 @@ class TestSettingsFromEnv:
         """Campos extra en .env deben ser ignorados (extra='ignore')."""
         monkeypatch.setenv("UNKNOWN_FIELD", "some_value")
 
-        import importlib
-
-        import app.core.config
-        importlib.reload(app.core.config)
-        from app.core.config import Settings
-
         # No debe lanzar error
-        s = Settings()
+        s = Settings(_env_file=None)
         assert s.app_name == "Renatx Platform API"
 
 
@@ -107,26 +88,14 @@ class TestSettingsValidation:
     def test_postgres_port_is_int(self, monkeypatch):
         monkeypatch.setenv("POSTGRES_PORT", "5432")
 
-        import importlib
-
-        import app.core.config
-        importlib.reload(app.core.config)
-        from app.core.config import Settings
-
-        s = Settings()
+        s = Settings(_env_file=None)
         assert isinstance(s.postgres_port, int)
         assert s.postgres_port == 5432
 
     def test_jwt_expire_minutes_is_int(self, monkeypatch):
         monkeypatch.setenv("JWT_EXPIRE_MINUTES", "120")
 
-        import importlib
-
-        import app.core.config
-        importlib.reload(app.core.config)
-        from app.core.config import Settings
-
-        s = Settings()
+        s = Settings(_env_file=None)
         assert isinstance(s.jwt_expire_minutes, int)
         assert s.jwt_expire_minutes == 120
 
@@ -163,3 +132,61 @@ class TestSettingsImmutability:
         # En tests no se debe modificar la instancia global
         original = settings.app_name
         assert settings.app_name == original
+
+class TestSecurityHardening:
+    """Validaciones que impiden arrancar en producción con configuración insegura."""
+
+    def _secure_settings(self):
+        return Settings(
+            _env_file=None,
+            ENV="prod",
+            BASE_DOMAIN="renatx.com",
+            JWT_SECRET_KEY="x" * 40,
+            ADMIN_PASSWORD_HASH="pbkdf2_sha256$1000$aa$bb",
+            STRIPE_WEBHOOK_SECRET="whsec_real_secret",
+        )
+
+    def test_secure_production_config_has_no_problems(self):
+        assert self._secure_settings().security_problems() == []
+
+    def test_default_jwt_secret_is_flagged(self):
+        s = Settings(_env_file=None, JWT_SECRET_KEY="corto")
+        assert any("JWT_SECRET_KEY" in p for p in s.security_problems())
+
+    def test_missing_admin_hash_is_flagged(self):
+        s = Settings(_env_file=None, ADMIN_PASSWORD_HASH="")
+        assert any("ADMIN_PASSWORD_HASH" in p for p in s.security_problems())
+
+    def test_mock_webhook_secret_is_flagged(self):
+        s = Settings(
+            _env_file=None,
+            JWT_SECRET_KEY="x" * 40,
+            ADMIN_PASSWORD_HASH="pbkdf2_sha256$1000$aa$bb",
+        )
+        assert any("STRIPE_WEBHOOK_SECRET" in p for p in s.security_problems())
+
+    def test_localhost_domain_is_flagged(self):
+        s = Settings(
+            _env_file=None,
+            JWT_SECRET_KEY="x" * 40,
+            ADMIN_PASSWORD_HASH="pbkdf2_sha256$1000$aa$bb",
+            STRIPE_WEBHOOK_SECRET="whsec_real",
+            BASE_DOMAIN="renatx.localhost",
+        )
+        assert any("BASE_DOMAIN" in p for p in s.security_problems())
+
+    def test_docs_disabled_by_default_in_prod(self):
+        assert self._secure_settings().docs_enabled is False
+
+    def test_docs_enabled_by_default_outside_prod(self):
+        assert Settings(_env_file=None, ENV="local").docs_enabled is True
+
+    def test_docs_can_be_forced(self):
+        s = Settings(_env_file=None, ENV="prod", ENABLE_DOCS="true")
+        assert s.docs_enabled is True
+
+    def test_cors_origin_list_parsing(self):
+        s = Settings(
+            _env_file=None, CORS_ORIGINS=" https://a.example , ,https://b.example "
+        )
+        assert s.cors_origin_list == ["https://a.example", "https://b.example"]

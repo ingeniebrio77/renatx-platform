@@ -61,37 +61,59 @@ class TestAuthLogin:
         assert response.status_code == 401
         assert "Credenciales inválidas" in response.json()["detail"]
 
-    def test_login_accepts_any_username_with_valid_password(self, test_client: TestClient):
-        """El endpoint acepta cualquier username si la password tiene >= 4 chars (sin BD de usuarios)."""
+    def test_login_rejects_unknown_username(self, test_client: TestClient):
+        """Un usuario distinto del administrador debe ser rechazado."""
         response = test_client.post(
             "/auth/login",
             json={"username": "cualquiera@dominio.com", "password": "linux-admin-demo"},
         )
-        assert response.status_code == 200
-        assert "access_token" in response.json()
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Credenciales inválidas"
 
-    def test_login_accepts_any_password_with_min_length(self, test_client: TestClient):
-        """El endpoint acepta cualquier password con longitud >= 4."""
+    def test_login_rejects_wrong_password(self, test_client: TestClient):
+        """Una contraseña incorrecta debe ser rechazada aunque tenga longitud válida."""
         response = test_client.post(
             "/auth/login",
             json={"username": "renato@renatx.com", "password": "pass123"},
         )
-        assert response.status_code == 200
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Credenciales inválidas"
 
-    def test_login_with_missing_fields_uses_defaults(self, test_client: TestClient):
-        """Campos faltantes usan valores por defecto del schema (username/password por defecto)."""
+    def test_login_with_missing_fields_returns_422(self, test_client: TestClient):
+        """Sin usuario ni contraseña, Pydantic debe rechazar la petición (422)."""
         response = test_client.post("/auth/login", json={})
-        assert response.status_code == 200
-        data = response.json()
-        assert "access_token" in data
-        # Token debe ser decodificable con defaults
-        import jwt
-        payload = jwt.decode(
-            data["access_token"],
-            "test_secret_key_for_testing_only_32chars",
-            algorithms=["HS256"],
+        assert response.status_code == 422
+
+    def test_login_rate_limited_after_max_attempts(self, test_client: TestClient):
+        """Superar el límite de intentos fallidos debe devolver 429."""
+        from app.routers.auth import login_limiter
+
+        for _ in range(login_limiter.max_attempts):
+            response = test_client.post(
+                "/auth/login",
+                json={"username": "renato@renatx.com", "password": "incorrecta"},
+            )
+            assert response.status_code == 401
+
+        blocked = test_client.post(
+            "/auth/login",
+            json={"username": "renato@renatx.com", "password": "linux-admin-demo"},
         )
-        assert payload["sub"] == "renato@renatx.com"
+        assert blocked.status_code == 429
+        assert "Retry-After" in blocked.headers
+
+    def test_login_without_configured_hash_returns_503(
+        self, test_client: TestClient, monkeypatch
+    ):
+        """Si el servidor no tiene ADMIN_PASSWORD_HASH, debe avisar con 503."""
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "admin_password_hash", "")
+        response = test_client.post(
+            "/auth/login",
+            json={"username": "renato@renatx.com", "password": "linux-admin-demo"},
+        )
+        assert response.status_code == 503
 
     def test_login_response_schema_matches_token_response(self, test_client: TestClient):
         """La respuesta debe coincidir con el esquema TokenResponse."""

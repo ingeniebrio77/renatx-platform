@@ -1,0 +1,52 @@
+# Imprescindible para builds limpios
+.git
+.gitignore
+*.md
+.env*
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.venv/
+venv/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+coverage/
+package-lock.json
+*.tsbuildinfo
+
+# Terraform / OpenTofu
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/.terraform.lock.hcl
+crash.log
+
+# Test artifacts
+testsprite_tests/tmp/
+*.test.js
+
+# IDE / archivos temporales
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
