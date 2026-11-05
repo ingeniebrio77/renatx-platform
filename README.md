@@ -5,7 +5,7 @@ Plataforma comercial bilingüe (**Español 🇪🇸 / Alemán 🇩🇪**) para l
 
 ---
 
-## 🎯 1. Qué Hace esta Plataforma (Catálogo Comercial + RustDesk Efímero)
+## 🎯 1. Qué Hace esta Plataforma
 
 1. **Web Comercial Bilingüe (`ES` / `DE`):**
    - Presenta tus 3 productos estrella con precios cerrados:
@@ -13,112 +13,120 @@ Plataforma comercial bilingüe (**Español 🇪🇸 / Alemán 🇩🇪**) para l
      - **Mentoría 1-a-1 Certificaciones & FISI (49 € / 60 min):** Preparación práctica para exámenes IHK (*Fachinformatiker*), CompTIA Network+ y AWS.
      - **Bono 5 Sesiones Hands-On DevOps (220 € / 5h):** Construcción guiada de infraestructura con Terraform, Ansible, Podman y Traefik.
    - Conectada a `POST /api/billing/checkout` (FastAPI) para emitir la sesión de pago en Stripe en el idioma elegido por el cliente.
+
 2. **Centro de Asistencia Remota RustDesk Bajo Demanda (`0,007 €/hora`):**
    - Muestra al cliente si tu nodo de soporte remoto (`support.renatx.com`) está en **STANDBY (0,00 €/h)** o **ACTIVO**.
    - Incluye un **Panel del Instructor** (protegido con tu token JWT) desde donde activas o apagas la sesión de soporte, mostrando el tiempo transcurrido en minutos y el coste acumulado en céntimos de euro.
 
 ---
 
-## 🛠️ 2. Guía Paso a Paso: Cómo Subir Todo a GitHub Hoy Mismo
+## 🔒 2. Seguridad del Backend
 
-He inicializado el repositorio Git local en `/home/renato/Projectos/Pagina` con el primer commit limpio (respetando `.gitignore` para que `.env` y las claves privadas jamás se suban).
+| Protección | Descripción |
+|------------|-------------|
+| **JWT** | HMAC-SHA256, 60 min expiración, clave >= 32 caracteres |
+| **Contraseña Admin** | PBKDF2-HMAC-SHA256 (260k iteraciones). Genera con `make password-hash` |
+| **Rate Limiting** | 5 intentos / 5 minutos por IP en `/auth/login` |
+| **Stripe Webhook** | Verificación HMAC con ventana anti-replay de 300s |
+| **CORS** | Lista blanca en producción (Traefik sirve bajo mismo origen) |
+| **Docs en Producción** | Deshabilitados por defecto (`ENABLE_DOCS` opcional) |
+| **Health Check** | No expone credenciales ni datos internos |
 
-Para publicarlo en tu cuenta de GitHub (`ingeniebrio77` o la cuenta que prefieras para tu marca `renatx`):
+---
 
-### Opción A: Usando la interfaz web de GitHub + SSH
-1. Entra en [https://github.com/new](https://github.com/new) y crea un repositorio (privado o público) llamado **`renatx-platform`**, **sin** marcar "Add a README".
-2. En tu terminal de Arch Linux, ejecuta:
-   ```bash
-   cd /home/renato/Projectos/Pagina
-   git branch -M main
-   git remote add origin git@github.com:TU_USUARIO_GITHUB/renatx-platform.git
-   git push -u origin main
-   ```
+## 🛠️ 3. Guía Paso a Paso: Cómo Preparar el Repositorio
 
-### Opción B: Usando GitHub CLI (`gh`) directamente desde tu terminal
+El repositorio está listo para producción (F1 + F2 completados).
+
+### Generar la contraseña del administrador
 ```bash
 cd /home/renato/Projectos/Pagina
-gh repo create renatx-platform --private --source=. --remote=origin --push
+make password-hash
+# Copia el output a .env como ADMIN_PASSWORD_HASH=...
+```
+
+### Verificar en local
+```bash
+make up           # Levanta web + API
+make down         # Detiene todo
+make db-backup    # Backup de PostgreSQL
 ```
 
 ---
 
-## 🧪 3. Cómo Probar Todo en Local (Arch Linux + Podman)
+## ☁️ 4. Guía Completa de Despliegue Real (`renatx.com`)
 
-### A. Levantar la Web Comercial y la API
-```bash
-cd /home/renato/Projectos/Pagina
-make up
-```
-- Abre **`http://renatx.localhost:8080`** en tu navegador.
-- Cambia entre **🇪🇸 ES** y **🇩🇪 DE** arriba a la derecha.
-- Pulsa **"Reservar y Pagar con Stripe"** en cualquiera de tus 3 servicios.
-- En la sección **RustDesk**, pulsa **"1. Autenticar Instructor (JWT)"** y luego **"Encender Nodo RustDesk"** para ver cómo se habilitan las credenciales `hbbs`/`hbbr` para el cliente.
-
-### B. Levantar el Servidor RustDesk Real en tu Arch Linux Local
-Si quieres probar la conexión con la aplicación de escritorio de RustDesk en tu propia red local:
-```bash
-# 1. Descarga y levanta hbbs y hbbr en Podman y muestra tu clave pública Ed25519:
-make rustdesk-local-up
-
-# 2. Para ver tu clave pública en cualquier momento:
-make rustdesk-key
-
-# 3. Para apagar el servidor RustDesk local cuando termines:
-make rustdesk-local-down
-```
-
----
-
-## ☁️ 4. Guía Completa de Despliegue Real en Producción (`renatx.com`)
-
-Cuando decidas lanzar la web a Internet, sigue exactamente este orden:
+Cuando estés listo para lanzar la web a Internet, sigue exactamente este orden:
 
 ### Paso 1: Comprar `renatx.com` en Cloudflare
 1. Entra en tu panel de **Cloudflare** -> *Domain Registration* -> *Register Domains*.
-2. Busca **`renatx.com`** (~10,44 $/año a precio de coste) y regístralo.
-3. En la página principal del dominio dentro de Cloudflare, copia el **Zone ID** (abajo a la derecha) y crea un **API Token** (*Edit zone DNS*).
+2. Busca **`renatx.com`** (~10,44 $/año) y regístralo.
+3. Copia el **Zone ID** y crea un **API Token** (*Edit zone DNS*).
 
-### Paso 2: Crear cuenta y API Token en Hetzner Cloud (Alemania)
-1. Entra en [https://console.hetzner.cloud](https://console.hetzner.cloud) y crea un proyecto llamado **`renatx-platform`**.
-2. Ve a *Security* -> *API Tokens* y genera un token con permisos de *Read & Write*.
-3. Instala OpenTofu (o Terraform) y Ansible en tu Arch Linux:
+### Paso 2: Crear cuenta y API Token en Hetzner Cloud
+1. Entra en [https://console.hetzner.cloud](https://console.hetzner.cloud) y crea un proyecto `renatx-platform`.
+2. Ve a *Security* -> *API Tokens* y genera un token con permisos *Read & Write*.
+3. Instala OpenTofu y Ansible:
    ```bash
    sudo pacman -S opentofu ansible
    ```
 
-### Paso 3: Desplegar el Servidor Web (`preprod` o `prod`) con Terraform/OpenTofu
-1. Entra en `infra-platform/terraform/envs/prod` (o `preprod` para probar primero gastando menos de 1 céntimo la hora):
-   ```bash
-   cd /home/renato/Projectos/Pagina/infra-platform/terraform/envs/preprod
-   tofu init
-   tofu apply \
-     -var="hcloud_token=TU_TOKEN_HETZNER" \
-     -var="cloudflare_api_token=TU_TOKEN_CLOUDFLARE" \
-     -var="cloudflare_zone_id=TU_ZONE_ID" \
-     -var="ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)"
-   ```
-2. OpenTofu creará el servidor Debian 12 en Falkenstein (`fsn1`), el firewall y apuntará los registros DNS de `renatx.com` automáticamente.
+### Paso 3: Desplegar el Servidor Web (`prod` o `preprod`)
+```bash
+cd /home/renato/Projectos/Pagina/infra-platform/terraform/envs/prod
+tofu init
+tofu apply \
+  -var="hcloud_token=TU_TOKEN_HETZNER" \
+  -var="cloudflare_api_token=TU_TOKEN_CLOUDFLARE" \
+  -var="cloudflare_zone_id=TU_ZONE_ID" \
+  -var="ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)"
+```
 
-### Paso 4: Configurar el Servidor con Ansible (Podman Rootless + UFW)
+### Paso 4: Configurar el Servidor con Ansible
 ```bash
 cd /home/renato/Projectos/Pagina/infra-platform/ansible
 cp inventory.ini.example inventory.ini
-# Pon la IP que te devolvió OpenTofu en inventory.ini y ejecuta:
+# Edita inventory.ini con la IP del servidor
 ansible-playbook -i inventory.ini playbook.yml
 ```
-*(Esto deja el servidor endurecido con UFW, SSH solo por clave, Podman rootless autorizado para abrir el puerto 80/443 y `linger` activado).*
 
-### Paso 5: Cómo Operar una Sesión de Soporte Remoto RustDesk por Horas/Minutos
-Cuando un cliente te reserve una sesión de **Soporte S.O.S. (65 €)** o **Mentoría (49 €)**:
+---
 
-1. **5 minutos antes de la videollamada/sesión**, enciende el servidor efímero de RustDesk en Hetzner:
-   ```bash
-   make rustdesk-cloud-up
-   ```
-   *(En ~45 segundos tendrás `support.renatx.com` activo corriendo `hbbs` y `hbbr` en Podman).*
-2. Al terminar la sesión de 1 o 2 horas, destrúyelo con un comando:
-   ```bash
-   make rustdesk-cloud-down
-   ```
-   **Resultado FinOps:** Habrás cobrado 49 € – 65 € por tu sesión y habrás pagado **~0,014 € (1,4 céntimos de euro)** de infraestructura Cloud, volviendo inmediatamente a **coste 0,00 €/h** y superficie de ataque cero.
+## 🔐 5. Archivos Críticos (No Modificar Sin Confirmar)
+
+| Archivo | Propósito | Precaución |
+|---------|-----------|------------|
+| `.env` | Variables de entorno | **Nunca subir a Git** |
+| `~/.ssh/id_ed25519` | Clave SSH del servidor | Usar con Hetzner |
+| `infra-platform/rustdesk/data/` | Claves RustDesk | Respaldar después de uso efímero |
+
+---
+
+## 🧪 6. Pruebas y Calidad
+
+| Suite | Tests | Cobertura |
+|-------|-------|-----------|
+| Backend (service-api) | 191 | 100% |
+| Frontend (service-web) | 25 | — |
+| CI/CD (.github/workflows/ci.yml) | — | Trivy + ruff + mypy + jest |
+
+---
+
+## 📦 7. Dependencias Principales
+
+| Componente | Versión | Nota |
+|--------------|---------|------|
+| FastAPI | >=0.115 | Async API |
+| Next.js | 16.3.3 | App Router, Edge-ready |
+| React | 19.0.0 | Con Suspense |
+| Python | 3.12 | uv + uv.lock |
+| Node.js | 24 | npm 10+ |
+| PostgreSQL | 16 | En red interna db_net |
+| Traefik | v3.1 | Reverse proxy + ACME |
+| RustDesk | latest | hbbs/hbbr efímero |
+
+---
+
+## 📄 8. License
+
+MIT License — Puedes usar, modificar y distribuir libremente. Ver archivo `LICENSE` para más detalles.
